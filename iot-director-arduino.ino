@@ -113,12 +113,6 @@ bool setup_client() {
     wdt_reset();
 
     client_reconnect_counter = 0;
-
-    char mac_address_str[17];
-    sprintf(mac_address_str, "%02x:%02x:%02x:%02x:%02x:%02x", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
-    client.println(mac_address_str);
-
-    wdt_reset();
   
     return true;
   }
@@ -144,6 +138,71 @@ void reset_client() {
     
     client.read();
   }
+
+  wdt_reset();
+}
+
+int parse_command_id() {
+  wdt_reset();
+  
+  char command_char = client.read();
+
+  wdt_reset();
+
+  if (command_char != 'C') {
+    Serial.println("Invalid code received");
+    return 0;
+  }
+
+  wdt_reset();
+
+  char digit1 = client.read();
+
+  wdt_reset();
+
+  char digit2 = client.read();
+
+  wdt_reset();
+
+  char digit3 = client.read();
+
+  wdt_reset();
+
+  char digit4 = client.read();
+
+  if ((digit1 < 48) || (digit1 > 57) || (digit2 < 48) || (digit2 > 57) || (digit3 < 48) || (digit3 > 57) || (digit4 < 48) || (digit4 > 57)) {
+    Serial.println("Invalid command id received");
+    return 0;
+  }
+
+  return ((digit1 - 48) * 1000) + ((digit2 - 48) * 100) + ((digit3 - 48) * 10) + (digit4 - 48);
+}
+
+void write_command_id(int command_id) {
+  wdt_reset();
+
+  char command_prefix[6];
+  sprintf(command_prefix, "C%04d", command_id);
+  client.print(command_prefix);
+  
+  wdt_reset();
+}
+
+void parse_get_client_id_command(int command_id) {
+  wdt_reset();
+  
+  char mac_address_str[17];
+  sprintf(mac_address_str, "%02x:%02x:%02x:%02x:%02x:%02x", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
+
+  wdt_reset();
+
+  Serial.print("Sending client id ");
+  Serial.println(mac_address_str);
+
+  wdt_reset();
+
+  write_command_id(command_id);
+  client.println(mac_address_str);
 
   wdt_reset();
 }
@@ -212,7 +271,7 @@ void parse_pin_mode_command() {
   wdt_reset();
 }
 
-void parse_digital_read_command() {
+void parse_digital_read_command(int command_id) {
   wdt_reset();
 
   char digit1 = client.read();
@@ -237,7 +296,10 @@ void parse_digital_read_command() {
   Serial.print(pin);
   Serial.print(" value: ");
   Serial.println(val);
+  
+  wdt_reset();
 
+  write_command_id(command_id);
   client.println(val);
 
   wdt_reset();
@@ -286,7 +348,7 @@ void parse_digital_write_command() {
   wdt_reset();
 }
 
-void parse_analog_read_command() {
+void parse_analog_read_command(int command_id) {
   wdt_reset();
 
   char digit1 = client.read();
@@ -311,16 +373,23 @@ void parse_analog_read_command() {
   Serial.print(pin);
   Serial.print(" value: ");
   Serial.println(val);
+  
+  wdt_reset();
 
+  write_command_id(command_id);
   client.println(val);
 
   wdt_reset();
 }
 
-void parse_noop_command() {
+void parse_noop_command(int command_id) {
   wdt_reset();
 
   Serial.println("noop");
+  
+  wdt_reset();
+
+  write_command_id(command_id);
   client.println("N");
 
   wdt_reset();
@@ -328,18 +397,33 @@ void parse_noop_command() {
 
 void parse_command() {
   wdt_reset();
+
+  int command_id = parse_command_id();
+  
+  wdt_reset();
+
+  if (command_id == 0) {
+    read_to_newline();
+    return;
+  }
+  
+  wdt_reset();
   
   char command = client.read();
   
   wdt_reset();
 
   switch(command) {
+    case 'I':
+      parse_get_client_id_command(command_id);
+      break;
+      
     case 'M':
       parse_pin_mode_command();
       break;
 
     case 'R':
-      parse_digital_read_command();
+      parse_digital_read_command(command_id);
       break;
 
     case 'W':
@@ -347,11 +431,11 @@ void parse_command() {
       break;
 
     case 'A':
-      parse_analog_read_command();
+      parse_analog_read_command(command_id);
       break;
 
     case 'N':
-      parse_noop_command();
+      parse_noop_command(command_id);
       break;
 
     default:
